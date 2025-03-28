@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Medical Chat - Medical Assistant</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <style>
+        .chat-container { height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 15px; }
+        .user-message { background-color: #f1f0f0; padding: 10px; border-radius: 10px; margin-bottom: 10px; max-width: 80%; margin-left: auto; }
+        .assistant-message { background-color: #e3f2fd; padding: 10px; border-radius: 10px; margin-bottom: 10px; max-width: 80%; }
+        .system-message { background-color: #fff3cd; padding: 10px; border-radius: 10px; margin-bottom: 10px; max-width: 80%; }
+        .modal-body pre { white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">Medical Chat Assistant 💬</h1>
+        
+        <ul class="nav nav-pills mb-4 justify-content-center">
+            <li class="nav-item">
+                <a class="nav-link" href="/">Home</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/report-analysis">Report Analysis</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link active" href="/medical-chat">Medical Chat</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/health-tips">Health Tips</a>
+            </li>
+        </ul>
+        
+        <div class="row">
+            <div class="col-md-9">
+                <div class="chat-container" id="chat-container">
+                    {% for message in chat_history %}
+                        <div class="{{ message.role }}-message">
+                            {{ message.content }}
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="input-group mt-3">
+                    <input type="text" id="user-input" class="form-control" placeholder="Ask a medical question...">
+                    <button class="btn btn-primary" id="send-button">Send</button>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">Chat Controls</div>
+                    <div class="card-body">
+                        <button id="clear-history" class="btn btn-warning mb-3 w-100">Clear Chat History</button>
+                        <button id="view-context" class="btn btn-info mb-3 w-100">View Model Context</button>
+                        
+                        <div class="mb-3">
+                            <label for="chat-file" class="form-label">Upload Document</label>
+                            <input class="form-control" type="file" id="chat-file" accept=".pdf,.png,.jpg,.jpeg">
+                        </div>
+                        <button id="upload-document" class="btn btn-secondary w-100">Process Document</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal for displaying model context -->
+    <div class="modal fade" id="contextModal" tabindex="-1" aria-labelledby="contextModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="contextModalLabel">Model Context</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>Document Context:</h6>
+                    <pre id="document-context">No document context available</pre>
+                    
+                    <h6 class="mt-3">Recent Chat History:</h6>
+                    <pre id="chat-history-context">No chat history available</pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const chatContainer = document.getElementById('chat-container');
+            const userInput = document.getElementById('user-input');
+            const sendButton = document.getElementById('send-button');
+            const clearButton = document.getElementById('clear-history');
+            const uploadButton = document.getElementById('upload-document');
+            const viewContextButton = document.getElementById('view-context');
+            const contextModal = new bootstrap.Modal(document.getElementById('contextModal'));
+            
+            // Load chat history on page load
+            loadChatHistory();
+            
+            // Check if a document is already loaded
+            checkForExistingDocument();
+            
+            function checkForExistingDocument() {
+                fetch('/check-document')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.has_document) {
+                            // Add document preview
+                            const previewDiv = document.createElement('div');
+                            previewDiv.className = 'system-message';
+                            previewDiv.innerHTML = `<strong>Document Preview:</strong><br>
+                                ${data.document_preview} 
+                                <button class="btn btn-sm btn-link" id="show-full-doc">Show Full Document</button>`;
+                            chatContainer.appendChild(previewDiv);
+                            
+                            // Add event listener for the show full document button
+                            document.getElementById('show-full-doc').addEventListener('click', function() {
+                                fetch('/get-model-context')
+                                    .then(response => response.json())
+                                    .then(contextData => {
+                                        document.getElementById('document-context').textContent = contextData.document_context;
+                                        new bootstrap.Modal(document.getElementById('contextModal')).show();
+                                    });
+                            });
+                            
+                            // Add system message
+                            const systemMessageDiv = document.createElement('div');
+                            systemMessageDiv.className = 'system-message';
+                            systemMessageDiv.textContent = 'Document loaded. You can ask questions about it.';
+                            chatContainer.appendChild(systemMessageDiv);
+                            
+                            // Scroll to bottom
+                            chatContainer.scrollTop = chatContainer.scrollHeight;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking for document:', error);
+                    });
+            }
+            
+            // Function to load chat history
+            function loadChatHistory() {
+                fetch('/get-history')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.history && data.history.length > 0) {
+                            // Clear existing messages
+                            chatContainer.innerHTML = '';
+                            
+                            // Add messages from history
+                            data.history.forEach(message => {
+                                const messageDiv = document.createElement('div');
+                                messageDiv.className = `${message.role}-message`;
+                                messageDiv.textContent = message.content;
+                                chatContainer.appendChild(messageDiv);
+                            });
+                            
+                            // Scroll to bottom
+                            chatContainer.scrollTop = chatContainer.scrollHeight;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading chat history:', error);
+                    });
+            }
+            
+            // Scroll to bottom of chat
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            // Send message
+            function sendMessage() {
+                const message = userInput.value.trim();
+                if (!message) return;
+                
+                // Add user message to chat
+                const userMessageDiv = document.createElement('div');
+                userMessageDiv.className = 'user-message';
+                userMessageDiv.textContent = message;
+                chatContainer.appendChild(userMessageDiv);
+                
+                // Clear input
+                userInput.value = '';
+                
+                // Scroll to bottom
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+                
+                // Send to server
+                fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Add assistant message to chat
+                    const assistantMessageDiv = document.createElement('div');
+                    assistantMessageDiv.className = 'assistant-message';
+                    assistantMessageDiv.textContent = data.response;
+                    chatContainer.appendChild(assistantMessageDiv);
+                    
+                    // Scroll to bottom
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error sending message. Please try again.');
+                });
+            }
+            
+            // View model context
+            viewContextButton.addEventListener('click', function() {
+                fetch('/get-model-context')
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('document-context').textContent = 
+                            data.document_context || 'No document context available';
+                        document.getElementById('chat-history-context').textContent = 
+                            data.chat_history || 'No chat history available';
+                        contextModal.show();
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Error retrieving model context. Please try again.');
+                    });
+            });
+            
+            // Event listeners
+            sendButton.addEventListener('click', sendMessage);
+            userInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            
+            clearButton.addEventListener('click', function() {
+                if (confirm('Are you sure you want to clear the chat history?')) {
+                    fetch('/clear-history', {
+                        method: 'POST',
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            chatContainer.innerHTML = '';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+                }
+            });
+            
+            uploadButton.addEventListener('click', function() {
+                const fileInput = document.getElementById('chat-file');
+                if (fileInput.files.length === 0) {
+                    alert('Please select a file');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                // Show loading message
+                const loadingDiv = document.createElement('div');
+                loadingDiv.className = 'system-message';
+                loadingDiv.textContent = 'Processing document...';
+                chatContainer.appendChild(loadingDiv);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+                
+                fetch('/upload-report', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Remove loading message
+                    chatContainer.removeChild(loadingDiv);
+                    
+                    // Add system message
+                    const systemMessageDiv = document.createElement('div');
+                    systemMessageDiv.className = 'system-message';
+                    
+                    if (data.error) {
+                        systemMessageDiv.textContent = 'Error processing document: ' + data.error;
+                    } else {
+                        systemMessageDiv.textContent = 'Document processed successfully. You can now ask questions about it.';
+                        
+                        // Add document preview
+                        const previewDiv = document.createElement('div');
+                        previewDiv.className = 'system-message';
+                        previewDiv.innerHTML = `<strong>Document Preview:</strong><br>
+                            ${data.text.substring(0, 200)}... 
+                            <button class="btn btn-sm btn-link" id="show-full-doc">Show Full Document</button>`;
+                        chatContainer.appendChild(previewDiv);
+                        
+                        // Add event listener for the show full document button
+                        document.getElementById('show-full-doc').addEventListener('click', function() {
+                            document.getElementById('document-context').textContent = data.text;
+                            new bootstrap.Modal(document.getElementById('contextModal')).show();
+                        });
+                    }
+                    
+                    chatContainer.appendChild(systemMessageDiv);
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                    
+                    // Clear file input
+                    fileInput.value = '';
+                })
+                .catch(error => {
+                    // Remove loading message
+                    chatContainer.removeChild(loadingDiv);
+                    
+                    // Add error message
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'system-message';
+                    errorDiv.textContent = 'Error processing document: ' + error;
+                    chatContainer.appendChild(errorDiv);
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                });
+            });
+        });
+    </script>
+</body>
+</html>

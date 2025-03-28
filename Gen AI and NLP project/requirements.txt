@@ -1,0 +1,16 @@
+flask==2.0.1
+flask-session==0.4.0
+python-dotenv
+groq
+Pillow
+pytesseract
+pdf2image
+PyPDF2
+numpy==1.24.3
+spacy==3.6.1
+scispacy==0.5.3
+https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.3/en_core_sci_md-0.5.3.tar.gz
+sentence-transformers
+faiss-cpu
+pandas
+werkzeug 
