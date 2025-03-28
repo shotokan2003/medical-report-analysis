@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Report Analysis - Medical Assistant</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <style>
+        #highlighted-text { 
+            border: 1px solid #ddd; 
+            padding: 15px; 
+            border-radius: 5px; 
+            margin-bottom: 20px; 
+            line-height: 1.6;
+        }
+        #analysis-results { 
+            border: 1px solid #ddd; 
+            padding: 15px; 
+            border-radius: 5px; 
+        }
+        .loading { 
+            display: none; 
+        }
+        .medical-entity {
+            transition: all 0.2s ease;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        .medical-entity:hover {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transform: translateY(-1px);
+        }
+        .entity-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .entity-type {
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">Medical Report Analysis 🔍</h1>
+        
+        <ul class="nav nav-pills mb-4 justify-content-center">
+            <li class="nav-item">
+                <a class="nav-link" href="/">Home</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link active" href="/report-analysis">Report Analysis</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/medical-chat">Medical Chat</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/health-tips">Health Tips</a>
+            </li>
+        </ul>
+        
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card mb-4">
+                    <div class="card-header">Upload Medical Report</div>
+                    <div class="card-body">
+                        <form id="upload-form" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="file" class="form-label">Choose a file (PDF or Image)</label>
+                                <input class="form-control" type="file" id="file" name="file" accept=".pdf,.png,.jpg,.jpeg">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Analyze Report</button>
+                        </form>
+                        <div class="loading mt-3">
+                            <div class="d-flex align-items-center">
+                                <strong>Processing...</strong>
+                                <div class="spinner-border ms-auto" role="status" aria-hidden="true"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="results" style="display: none;">
+                    <div class="card mb-4">
+                        <div class="card-header">Identified Medical Entities</div>
+                        <div class="card-body">
+                            <div id="highlighted-text"></div>
+                            <div class="entity-legend">
+                                <span class="entity-type" style="background-color: #ff9999;">Disease</span>
+                                <span class="entity-type" style="background-color: #99ff99;">Chemical</span>
+                                <span class="entity-type" style="background-color: #9999ff;">Procedure</span>
+                                <span class="entity-type" style="background-color: #ffcc99;">Anatomy</span>
+                                <span class="entity-type" style="background-color: #ff99cc;">Problem</span>
+                                <span class="entity-type" style="background-color: #99ffff;">Test</span>
+                                <span class="entity-type" style="background-color: #ffff99;">Treatment</span>
+                                <span class="entity-type" style="background-color: #cc99ff;">Medication</span>
+                                <span class="entity-type" style="background-color: #ffd699;">Symptom</span>
+                                <span class="entity-type" style="background-color: #99ccff;">Vital Sign</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">Analysis Results</div>
+                        <div class="card-body">
+                            <div id="analysis-results"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('upload-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('file');
+            
+            if (fileInput.files.length === 0) {
+                alert('Please select a file');
+                return;
+            }
+            
+            formData.append('file', fileInput.files[0]);
+            
+            // Show loading
+            document.querySelector('.loading').style.display = 'block';
+            
+            fetch('/upload-report', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide loading
+                document.querySelector('.loading').style.display = 'none';
+                
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                
+                // Show results
+                document.getElementById('results').style.display = 'block';
+                document.getElementById('highlighted-text').innerHTML = data.highlighted_text;
+                document.getElementById('analysis-results').innerHTML = data.analysis;
+            })
+            .catch(error => {
+                document.querySelector('.loading').style.display = 'none';
+                alert('Error: ' + error);
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add hover effect to medical entities
+            document.querySelectorAll('.medical-entity').forEach(entity => {
+                entity.addEventListener('mouseover', function() {
+                    this.style.opacity = '0.8';
+                });
+                entity.addEventListener('mouseout', function() {
+                    this.style.opacity = '1';
+                });
+            });
+        });
+    </script>
+</body>
+</html>
